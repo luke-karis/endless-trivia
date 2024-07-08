@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Endless Trivia</title>
+    <link rel="stylesheet" href="style.css">
+  </head>
+
+  <body>
+    <h1>Endless Trivia</h1>
+    <div id="trivia-container">
+      <p id="score">Score: <span id="score-value">0</span></p>
+      <p id="lives">Lives: <span id="lives-value">3</span></p>
+      <p id="skips">Skips: <span id="skips-value">3</span></p>
+      <p id="mult-choice">Multiple Choice: <span id="mult-choice-value">5</span></p>
+
+      <p id="question"></p>
+      <div id="answer-container">
+        <input type="text" id="answer-input">
+        <button id="check-button">Check</button>
+        <button id="skip-button">Skip</button>
+        <button id="multiple-choice-button">Multiple Choice</button>
+      </div>
+    </div>
+
+    <footer>
+      <p>Trivia questions provided by <a href="https://the-trivia-api.com/" target="_blank">The Trivia API</a></p>
+    </footer>
+
+    <script type="module" src="script.js"></script>
+  </body>
+</html>
