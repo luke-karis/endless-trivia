@@ -54,13 +54,23 @@ h1 {
   color: #34495e;
 }
 
+#input-check-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
 #answer-input {
-  width: 100%;
-  padding: 10px;
-  margin: 10px 0;
+  flex-grow: 1;
+  margin-right: 10px;
+  height: 40px;
+  padding: 0 10px;
+  box-sizing: border-box;
+  font-size: 1em;
+  line-height: 40px;
   border: 1px solid #bdc3c7;
   border-radius: 4px;
-  font-size: 1em;
 }
 
 button {
@@ -86,11 +96,19 @@ button:hover {
   background-color: #c0392b;
 }
 
-#multiple-choice-button {
+#check-button {
   background-color: #2ecc71;
+  flex-shrink: 0;
+  height: 40px;
+  padding: 0 20px;
+  font-size: 1em;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-#multiple-choice-button:hover {
+#check-button:hover {
   background-color: #27ae60;
 }
 
