@@ -23,12 +23,28 @@
         <button id="skip-button">Skip</button>
         <button id="multiple-choice-button">Multiple Choice</button>
       </div>
+
+      <div id="answer-overlay" style="display: none;">
+        <div id="overlay-content">
+          <p id="answer-feedback"></p>
+          <p id="question-overlay"></p>
+          <p id="correct-answer"></p>
+
+          <!-- <canvas id="categories-chart" width="400" height="200"></canvas> -->
+          <div id="categories-chart-container">
+            <canvas id="categories-chart"></canvas>
+          </div>
+          <button id="continue-button">Continue</button>
+        </div>
+      </div>
     </div>
+
 
     <footer>
       <p>Trivia questions provided by <a href="https://the-trivia-api.com/" target="_blank">The Trivia API</a></p>
     </footer>
 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script type="module" src="script.js"></script>
   </body>
 </html>

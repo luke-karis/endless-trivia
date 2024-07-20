@@ -4,13 +4,15 @@ const CONSTANTS = {
   NUM_QUESTIONS: 10,
   INITIAL_LIVES: 3,
   INITIAL_SKIPS: 3,
-  INITIAL_MULT_CHOICE: 5,
+  INITIAL_MULT_CHOICE: 10,
   ANSWER_DISTANCE: 3,
   DIFFICULTIES: ['easy', 'easy,medium', 'medium,hard', 'hard']
 };
 
 const gameState = {
   questions: [],
+  categories: new Map(),
+  categoryChart: null,
   currentQuestionIndex: 0,
   score: 0,
   lives: CONSTANTS.INITIAL_LIVES,
@@ -87,7 +89,7 @@ function displayMultipleChoice(question) {
   allAnswers.forEach(answer => {
     const button = document.createElement('button');
     button.textContent = answer;
-    button.onclick = () => checkAnswer(answer, question.correctAnswer);
+    button.onclick = () => checkAnswer(question.question.text, question.category, answer, question.correctAnswer);
     answerContainer.appendChild(button);
   });
 }
@@ -100,13 +102,14 @@ function displayQuestion(question) {
     answerContainer.removeChild(answerContainer.lastChild);
   }
 
+  const questionText = question.question.text;
   const questionElement = document.getElementById('question');
-  questionElement.textContent = question.question.text;
+  questionElement.textContent = questionText;
 
   const answerInput = document.getElementById('answer-input');
   answerInput.value = '';
 
-  document.getElementById('check-button').onclick = () => checkAnswer(answerInput.value, question.correctAnswer);
+  document.getElementById('check-button').onclick = () => checkAnswer(questionText, question.category, answerInput.value, question.correctAnswer);
   document.getElementById('multiple-choice-button').onclick = () => displayMultipleChoice(question);
   document.getElementById('skip-button').onclick = () => {
     if (gameState.skips > 0) {
@@ -117,20 +120,124 @@ function displayQuestion(question) {
   };
 }
 
-function checkAnswer(userAnswer, correctAnswer) {
-  const cleanedAnswer = correctAnswer.toLowerCase().replace(/^(a|the)\s+/i, '');
+function checkAnswer(questionText, category, userAnswer, correctAnswer) {
 
-  if (userAnswer.toLowerCase() === cleanedAnswer ||
-      (isNaN(correctAnswer) && levenshtein(userAnswer.toLowerCase(), cleanedAnswer) < CONSTANTS.ANSWER_DISTANCE)) {
+  if (userAnswer === '') {
+    return;
+  }
+
+  const isCorrect = compareAnswers(userAnswer, correctAnswer);
+  // showAnswerOverlay(questionText, isCorrect, correctAnswer, userAnswer);
+
+  if (isCorrect) {
     gameState.score++;
     updateElement('score-value', gameState.score);
+    gameState.categories.set(category, (gameState.categories.get(category) ?? 0) + 1);
+    createOrUpdateBarChart(gameState.categories);
+    showAnswerOverlay(questionText, isCorrect, correctAnswer, userAnswer);
     nextQuestion();
   } else if (gameState.lives > 0) {
     gameState.lives--;
     updateElement('lives-value', gameState.lives);
+    showAnswerOverlay(questionText, isCorrect, correctAnswer, userAnswer);
     nextQuestion();
   } else {
     displayGameOver();
+  }
+}
+
+function compareAnswers(userAnswer, correctAnswer) {
+
+  const lowerUserAnswer = userAnswer.toLowerCase()
+  const lowerCorrectAnswer = correctAnswer.toLowerCase()
+  const cleanedAnswer = lowerCorrectAnswer.replace(/^(a|the)\s+/i, '');
+
+  //Having some issues with obv correct answers being marked as wrong so leaving logs for now
+  console.log(lowerUserAnswer === lowerCorrectAnswer);
+  console.log(lowerUserAnswer === cleanedAnswer);
+  console.log(isNaN(correctAnswer) && (levenshtein(lowerUserAnswer, lowerCorrectAnswer) < CONSTANTS.ANSWER_DISTANCE));
+  console.log(isNaN(correctAnswer) && (levenshtein(lowerUserAnswer, cleanedAnswer) < CONSTANTS.ANSWER_DISTANCE));
+
+  if (lowerUserAnswer === lowerCorrectAnswer ||
+      lowerUserAnswer === cleanedAnswer ||
+      (isNaN(correctAnswer) && (levenshtein(lowerUserAnswer, lowerCorrectAnswer) < CONSTANTS.ANSWER_DISTANCE)) ||
+      (isNaN(correctAnswer) && (levenshtein(lowerUserAnswer, cleanedAnswer) < CONSTANTS.ANSWER_DISTANCE))) {
+        return true;
+  }
+
+  return false;
+}
+
+function showAnswerOverlay(questionText, isCorrect, correctAnswer, userAnswer) {
+  const overlay = document.getElementById('answer-overlay');
+  const feedback = document.getElementById('answer-feedback');
+  const questionElement = document.getElementById('question-overlay');
+  const answerElement = document.getElementById('correct-answer');
+  const continueButton = document.getElementById('continue-button');
+
+  feedback.textContent = isCorrect ? "Correct!" : `${userAnswer} is Incorrect`;
+  if(!isCorrect) {
+    answerElement.textContent = "Answer: " + correctAnswer;
+    questionElement.textContent = "Question: " + questionText;
+  } else {
+    answerElement.textContent = "";
+    questionElement.textContent = "";
+  }
+
+  overlay.style.display = 'flex';
+
+  continueButton.onclick = () => {
+    overlay.style.display = 'none';
+    if (gameState.lives > 0) {
+      nextQuestion();
+    } else {
+      displayGameOver();
+    }
+  };
+}
+
+function mapToChartData(map) {
+  const labels = Array.from(map.keys());
+  const data = Array.from(map.values());
+  return { labels, data };
+}
+
+function createOrUpdateBarChart(map) {
+  const ctx = document.getElementById("categories-chart").getContext('2d');
+  const { labels, data } = mapToChartData(map);
+
+  if (gameState.categoryChart) {
+      // Update existing chart
+      gameState.categoryChart.data.labels = labels;
+      gameState.categoryChart.data.datasets[0].data = data;
+      gameState.categoryChart.update();
+  } else {
+      // Create new chart
+      gameState.categoryChart = new Chart(ctx, {
+          type: 'bar',
+          data: {
+              labels: labels,
+              datasets: [{
+                  label: 'Correct Answers by Category',
+                  data: data,
+                  backgroundColor: 'rgba(75, 192, 192, 0.6)',
+                  borderColor: 'rgba(75, 192, 192, 1)',
+                  borderWidth: 1
+              }]
+          },
+          options: {
+              scales: {
+                  y: {
+                      beginAtZero: true,
+                      ticks: {
+                          stepSize: 1
+                      }
+                  }
+              },
+              responsive: true,
+              maintainAspectRatio: false
+          }
+      });
   }
 }
 
@@ -172,6 +279,8 @@ function removeGameOverElements() {
 function resetGameState() {
   Object.assign(gameState, {
     questions: [],
+    categories: new Map(),
+    categoryChart: null,
     currentQuestionIndex: 0,
     score: 0,
     lives: CONSTANTS.INITIAL_LIVES,
