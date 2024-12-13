@@ -1,24 +1,35 @@
 import levenshtein from 'https://cdn.skypack.dev/js-levenshtein';
 
 const CONSTANTS = {
-  NUM_QUESTIONS: 10,
-  INITIAL_LIVES: 3,
-  INITIAL_SKIPS: 3,
-  INITIAL_MULT_CHOICE: 10,
-  ANSWER_DISTANCE: 3,
-  DIFFICULTIES: ['easy', 'easy,medium', 'medium,hard', 'hard']
+  //Normal ives and mult choice
+  INITIAL_LIVES_N: 5,
+  INITIAL_MULT_CHOICE_N: 10,
+  //Challenging lives and mult choice
+  INITIAL_LIVES_C: 3,
+  INITIAL_MULT_CHOICE_C: 5,
+  //Normal question distribution
+  EASY_QUESTIONS_NORMAL: 5,
+  MED_QUESTIONS_NORMAL: 10,
+  HARD_QUESTIONS_NORMAL: 5,
+  //Challenging question distribution
+  MED_QUESTIONS_CHAL: 10,
+  HARD_QUESTIONS_CHAL: 10,
+  TOTAL_QUESTIONS: 20,
+  ANSWER_DISTANCE: 5,
+  NORMAL_DIFFICULTY: "normal",
+  CHALLENGING_DIFFICULTY: "challenging"
 };
 
 const gameState = {
   questions: [],
+  questionsChal: [],
+  difficulty: CONSTANTS.NORMAL_DIFFICULTY,
   categories: new Map(),
   categoryChart: null,
   currentQuestionIndex: 0,
   score: 0,
   lives: CONSTANTS.INITIAL_LIVES,
-  skips: CONSTANTS.INITIAL_SKIPS,
   multChoice: CONSTANTS.INITIAL_MULT_CHOICE,
-  difficultyIndex: 0
 };
 
 function shuffleArray(array) {
@@ -43,30 +54,107 @@ function updateElement(elementId, value) {
   }
 }
 
-async function fetchQuestions() {
-  try {
-    const fetchPromises = CONSTANTS.DIFFICULTIES.map(difficulty => {
-      const apiUrl = `https://the-trivia-api.com/v2/questions?limit=${CONSTANTS.NUM_QUESTIONS}&difficulties=${difficulty}`;
-      return fetch(apiUrl).then(response => {
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        return response.json();
-      });
-    });
-
-    const results = await Promise.all(fetchPromises);
-    gameState.questions = results.flat().filter(filterMultipleChoiceQuestions);
-    gameState.difficultyIndex = CONSTANTS.DIFFICULTIES.length;
-  } catch (error) {
-    console.error("Error fetching questions:", error);
-    alert('Failed to fetch questions. Please try again later.');
-  }
-}
-
 function filterMultipleChoiceQuestions(question) {
-  const multipleChoiceKeywords = ['which of the following', 'which one', 'which of these'];
+  const multipleChoiceKeywords = ['which of the following', 'which one', 'which of these', 'plot'];
   return !multipleChoiceKeywords.some(keyword =>
     question.question.text.toLowerCase().includes(keyword)
   );
+}
+
+function mapToChartData(map) {
+  const labels = Array.from(map.keys());
+  const data = Array.from(map.values());
+  return { labels, data };
+}
+
+//THIS IS VERRRRY similar to method below prob should be paramaterized
+document.addEventListener('DOMContentLoaded', function() {
+  const startButtonNormal = document.getElementById('start-button-normal');
+
+  if (startButtonNormal) {
+      startButtonNormal.addEventListener('click', function() {
+          const startOverlay = document.getElementById('start-overlay');
+          if (startOverlay) {
+              startOverlay.style.display = 'none';
+          }
+          console.log("START GAME NORMAL")
+          startGame(CONSTANTS.NORMAL_DIFFICULTY);
+      });
+  }
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+  const startButtonChallenging = document.getElementById('start-button-challenging');
+
+  if (startButtonChallenging) {
+    startButtonChallenging.addEventListener('click', function() {
+        const startOverlay = document.getElementById('start-overlay');
+        if (startOverlay) {
+            startOverlay.style.display = 'none';
+        }
+        console.log("START GAME CHALLENGING")
+        startGame(CONSTANTS.CHALLENGING_DIFFICULTY);
+    });
+  }
+});
+
+//NEW fetch questions
+async function getTriviaQuestions(numToQuery, difficulty, numToDisplay) {
+  const apiUrl = `https://the-trivia-api.com/v2/questions?limit=${numToQuery}&difficulties=${difficulty}`;
+
+  const output = [];
+
+  while(output.length < numToDisplay) {
+    try {
+      const response = await fetch(apiUrl);
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+      const jsonData = await response.json();
+      const filteredData = jsonData.flat().filter(filterMultipleChoiceQuestions);
+
+      filteredData.forEach(e => output.push(e));
+
+    } catch (error) {
+      console.error("Error fetching questions:", error);
+      alert("Failed to fetch questions. Please try again later.");
+    }
+  }
+
+  return output;
+
+}
+
+async function fetchQuestions_new() {
+
+  const easyQuestions= await getTriviaQuestions(50, "easy", CONSTANTS.EASY_QUESTIONS_NORMAL);
+  const mediumQuestions = await getTriviaQuestions(50, "medium", CONSTANTS.MED_QUESTIONS_NORMAL + CONSTANTS.MED_QUESTIONS_CHAL);
+  const hardQuestions = await getTriviaQuestions(50, "hard", CONSTANTS.HARD_QUESTIONS_NORMAL + CONSTANTS.HARD_QUESTIONS_CHAL + CONSTANTS.INITIAL_LIVES_N);
+
+  const normalQuestions = [];
+  const chalQuestions = [];
+
+  for(let i = 0; i < CONSTANTS.TOTAL_QUESTIONS + CONSTANTS.INITIAL_LIVES_N; i++) {
+    if (i < CONSTANTS.EASY_QUESTIONS_NORMAL) {
+      normalQuestions.push(easyQuestions.pop());
+    } else if (i < CONSTANTS.EASY_QUESTIONS_NORMAL + CONSTANTS.MED_QUESTIONS_NORMAL) {
+      normalQuestions.push(mediumQuestions.pop());
+    } else if (i === CONSTANTS.EASY_QUESTIONS_NORMAL + CONSTANTS.MED_QUESTIONS_NORMAL) {
+      shuffleArray(normalQuestions);
+      normalQuestions.push(hardQuestions.pop());
+    } else {
+      normalQuestions.push(hardQuestions.pop());
+    }
+
+    if (i < CONSTANTS.MED_QUESTIONS_CHAL) {
+      chalQuestions.push(mediumQuestions.pop());
+    } else {
+      chalQuestions.push(hardQuestions.pop());
+    }
+  }
+
+  gameState.questions = normalQuestions;
+  gameState.chalQuestions = chalQuestions;
+
 }
 
 function displayMultipleChoice(question) {
@@ -77,7 +165,7 @@ function displayMultipleChoice(question) {
 
   const answerContainer = document.getElementById('answer-container');
 
-  hideElementsById(true, ['answer-input', 'check-button', 'multiple-choice-button', 'skip-button']);
+  hideElementsById(true, ['answer-input', 'check-button', 'multiple-choice-button']);
 
   while (answerContainer.lastChild.id !== 'multiple-choice-button') {
     answerContainer.removeChild(answerContainer.lastChild);
@@ -95,7 +183,7 @@ function displayMultipleChoice(question) {
 }
 
 function displayQuestion(question) {
-  hideElementsById(false, ['answer-input', 'check-button', 'multiple-choice-button', 'skip-button']);
+  hideElementsById(false, ['answer-input', 'check-button', 'multiple-choice-button', 'score', 'lives', 'mult-choice']);
   const answerContainer = document.getElementById('answer-container');
 
   while (answerContainer.lastChild.id !== 'multiple-choice-button') {
@@ -111,13 +199,6 @@ function displayQuestion(question) {
 
   document.getElementById('check-button').onclick = () => checkAnswer(questionText, question.category, answerInput.value, question.correctAnswer);
   document.getElementById('multiple-choice-button').onclick = () => displayMultipleChoice(question);
-  document.getElementById('skip-button').onclick = () => {
-    if (gameState.skips > 0) {
-      gameState.skips--;
-      updateElement('skips-value', gameState.skips);
-      nextQuestion();
-    }
-  };
 }
 
 function checkAnswer(questionText, category, userAnswer, correctAnswer) {
@@ -132,17 +213,14 @@ function checkAnswer(questionText, category, userAnswer, correctAnswer) {
   if (isCorrect) {
     gameState.score++;
     updateElement('score-value', gameState.score);
+
     gameState.categories.set(category, (gameState.categories.get(category) ?? 0) + 1);
     createOrUpdateBarChart(gameState.categories);
     showAnswerOverlay(questionText, isCorrect, correctAnswer, userAnswer);
-    nextQuestion();
-  } else if (gameState.lives > 0) {
+  } else {
     gameState.lives--;
     updateElement('lives-value', gameState.lives);
     showAnswerOverlay(questionText, isCorrect, correctAnswer, userAnswer);
-    nextQuestion();
-  } else {
-    displayGameOver();
   }
 }
 
@@ -152,12 +230,7 @@ function compareAnswers(userAnswer, correctAnswer) {
   const lowerCorrectAnswer = correctAnswer.toLowerCase()
   const cleanedAnswer = lowerCorrectAnswer.replace(/^(a|the)\s+/i, '');
 
-  //Having some issues with obv correct answers being marked as wrong so leaving logs for now
-  console.log(lowerUserAnswer === lowerCorrectAnswer);
-  console.log(lowerUserAnswer === cleanedAnswer);
-  console.log(isNaN(correctAnswer) && (levenshtein(lowerUserAnswer, lowerCorrectAnswer) < CONSTANTS.ANSWER_DISTANCE));
-  console.log(isNaN(correctAnswer) && (levenshtein(lowerUserAnswer, cleanedAnswer) < CONSTANTS.ANSWER_DISTANCE));
-
+  //ADD comments here!!
   if (lowerUserAnswer === lowerCorrectAnswer ||
       lowerUserAnswer === cleanedAnswer ||
       (isNaN(correctAnswer) && (levenshtein(lowerUserAnswer, lowerCorrectAnswer) < CONSTANTS.ANSWER_DISTANCE)) ||
@@ -188,18 +261,15 @@ function showAnswerOverlay(questionText, isCorrect, correctAnswer, userAnswer) {
 
   continueButton.onclick = () => {
     overlay.style.display = 'none';
-    if (gameState.lives > 0) {
-      nextQuestion();
+
+    if (gameState.score === CONSTANTS.TOTAL_QUESTIONS) {
+      displayGameOver(true);
+    } else if (gameState.lives === 0) {
+      displayGameOver(false);
     } else {
-      displayGameOver();
+      nextQuestion();
     }
   };
-}
-
-function mapToChartData(map) {
-  const labels = Array.from(map.keys());
-  const data = Array.from(map.values());
-  return { labels, data };
 }
 
 function createOrUpdateBarChart(map) {
@@ -243,28 +313,29 @@ function createOrUpdateBarChart(map) {
 
 async function nextQuestion() {
   gameState.currentQuestionIndex++;
-  if (gameState.currentQuestionIndex === gameState.questions.length) {
-    await fetchQuestions();
-  }
 
-  displayQuestion(gameState.questions[gameState.currentQuestionIndex]);
+  if (gameState.difficulty === CONSTANTS.NORMAL_DIFFICULTY) {
+    displayQuestion(gameState.questions[gameState.currentQuestionIndex]);
+  } else {
+    displayQuestion(gameState.chalQuestions[gameState.currentQuestionIndex]);
+  }
 }
 
-function displayGameOver() {
+function displayGameOver(gameWon) {
   const container = document.getElementById('trivia-container');
 
-  hideElementsById(true, ['question', 'answer-container']);
+  hideElementsById(true, ['question', 'answer-container', 'answer-input', 'score', 'lives', 'mult-choice']);
 
   const gameOverMessage = document.createElement('h2');
-  gameOverMessage.textContent = `Game Over. Final Score: ${gameState.score}`;
+  gameOverMessage.textContent = gameWon ? `You win!` : `Game Over. Final Score: ${gameState.score}`;
+  container.appendChild(gameOverMessage);
 
   const playAgainButton = document.createElement('button');
   playAgainButton.id = "playAgainButton";
   playAgainButton.textContent = 'Play Again';
-  playAgainButton.onclick = startGame;
-
-  container.appendChild(gameOverMessage);
   container.appendChild(playAgainButton);
+
+  playAgainButton.onclick = () => { hideElementsById(false, ['start-overlay']) };
 }
 
 function removeGameOverElements() {
@@ -276,40 +347,57 @@ function removeGameOverElements() {
   if (playAgainButton) container.removeChild(playAgainButton);
 }
 
-function resetGameState() {
+function resetGameState(gameType) {
+  let startingLives = gameType === CONSTANTS.NORMAL_DIFFICULTY ? CONSTANTS.INITIAL_LIVES_N : CONSTANTS.INITIAL_LIVES_C;
+  let startingMC = gameType === CONSTANTS.NORMAL_DIFFICULTY ? CONSTANTS.INITIAL_MULT_CHOICE_N : CONSTANTS.INITIAL_MULT_CHOICE_C;
+
+  if (gameState.categoryChart !== null) {
+    gameState.categoryChart.destroy();
+  }
+
   Object.assign(gameState, {
     questions: [],
+    questionsChal: [],
+    difficulty: CONSTANTS.NORMAL_DIFFICULTY,
     categories: new Map(),
     categoryChart: null,
     currentQuestionIndex: 0,
     score: 0,
-    lives: CONSTANTS.INITIAL_LIVES,
-    skips: CONSTANTS.INITIAL_SKIPS,
-    multChoice: CONSTANTS.INITIAL_MULT_CHOICE,
-    difficultyIndex: 0
+    lives: startingLives,
+    multChoice: startingMC,
+
   });
+
   updateUIElements();
 }
 
 function updateUIElements() {
   updateElement('score-value', gameState.score);
   updateElement('lives-value', gameState.lives);
-  updateElement('skips-value', gameState.skips);
   updateElement('mult-choice-value', gameState.multChoice);
 }
 
-async function startGame() {
-  resetGameState();
+async function startGame(gameType) {
+  resetGameState(gameType);
   removeGameOverElements();
   hideElementsById(false, ['question', 'answer-container']);
 
-  await fetchQuestions();
-  console.log(gameState.questions)
-  if (gameState.questions.length > 0) {
+
+  // NEW
+  await fetchQuestions_new();
+
+  console.log(gameState.questions);
+  console.log(gameState.chalQuestions);
+
+  if (gameType === CONSTANTS.CHALLENGING_DIFFICULTY) {
+    gameState.difficulty = CONSTANTS.CHALLENGING_DIFFICULTY;
+  }
+
+  if (gameState.questions.length === 0) {
+    alert('Failed to fetch questions. Please try again later.');
+  } else if (gameState.difficulty === CONSTANTS.NORMAL_DIFFICULTY) {
     displayQuestion(gameState.questions[gameState.currentQuestionIndex]);
   } else {
-    alert('Failed to fetch questions. Please try again later.');
+    displayQuestion(gameState.chalQuestions[gameState.currentQuestionIndex]);
   }
 }
-
-window.onload = startGame;
