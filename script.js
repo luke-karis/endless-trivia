@@ -1,75 +1,35 @@
 import levenshtein from 'https://cdn.skypack.dev/js-levenshtein';
 
-// Code Problems/todos
-//
-// STILL NEED TO DO THIS
-// 1. Go through alllll the code and reunderstand it and add comments!! (This will be crucial if I actually want to make progress duh)
-//
-// 2. Test game And come up with graphical/visual todos (there are so many, just foucs on one at a time
-//    2a. also focus on understanding CSS code
-
-// 3. Add all todos for this game as github tasks and:
-//    - rename repo
-//    - Create functionality to have a report question button which will store them in a datastore that stores the question and how many reports it got
-//    - Create baning functionality (ie certain questions will be banned and filtered out when questions are queried)
-//      Then I can query the db and get the highest reported questions and add them to the ban list (all programatically if possible)
-//    - remove the _ from category names in the graph
-//    - the overlay screen after you answer a question jumps to the bottom, would like it to be centered
-
-// Future ideas
-//
-// 1. Could have different dificulties which would change the variance of easy, medium, and hard questions.
-//    might also be a good idea to display the current question difficulty so people will be able to feel the
-//    difference between the levels.
-//
-// 2. Get the questions at the beginning of the day and only let one play per difficult (if difficulties are enabled)
-//
-// 3. MAYBE a button that you can click that checks your answer again in case the difference checker didn't get it
-
-
-// Bugs/Weird stuff
-//  WIERD ISSUE: Uncaught (in promise) TypeError: question is undefined
-//    then displays the same question as before and will conintuously display this one.....
-//    MAYBE This happens when you hit the max number of questions queried
-////
-// when you get an answe wrong and have no answers correctly there is just a big gap where the chart should be
-//
-// the mult choice buttons are a little squashed if they have two lines of text
-//
-// it takes a second or two for the game over shit to be removed
-
-
-
 const CONSTANTS = {
   //Normal ives and mult choice
-  INITIAL_LIVES_N: 1,
-  INITIAL_MULT_CHOICE_N: 100,
+  INITIAL_LIVES_N: 5,
+  INITIAL_MULT_CHOICE_N: 10,
   //Challenging lives and mult choice
   INITIAL_LIVES_C: 3,
   INITIAL_MULT_CHOICE_C: 5,
   //Normal question distribution
-  EASY_MED_QUESTIONS_N: 5,
-  MED_QUESTIONS_N: 10,
-  MED_HARD_QUESTIONS_N: 5,
+  EASY_QUESTIONS_NORMAL: 5,
+  MED_QUESTIONS_NORMAL: 10,
+  HARD_QUESTIONS_NORMAL: 5,
   //Challenging question distribution
-  EASY_MED_QUESTIONS_C: 0,
-  MED_QUESTIONS_C: 10,
-  MED_HARD_QUESTIONS_C: 10,
+  MED_QUESTIONS_CHAL: 10,
+  HARD_QUESTIONS_CHAL: 10,
   TOTAL_QUESTIONS: 20,
-  ANSWER_DISTANCE: 3,
+  ANSWER_DISTANCE: 5,
   NORMAL_DIFFICULTY: "normal",
   CHALLENGING_DIFFICULTY: "challenging"
 };
 
 const gameState = {
   questions: [],
+  questionsChal: [],
+  difficulty: CONSTANTS.NORMAL_DIFFICULTY,
   categories: new Map(),
   categoryChart: null,
   currentQuestionIndex: 0,
   score: 0,
   lives: CONSTANTS.INITIAL_LIVES,
   multChoice: CONSTANTS.INITIAL_MULT_CHOICE,
-  difficultyIndex: 0
 };
 
 function shuffleArray(array) {
@@ -116,8 +76,8 @@ document.addEventListener('DOMContentLoaded', function() {
           const startOverlay = document.getElementById('start-overlay');
           if (startOverlay) {
               startOverlay.style.display = 'none';
-              console.log("NORMAL");
           }
+          console.log("START GAME NORMAL")
           startGame(CONSTANTS.NORMAL_DIFFICULTY);
       });
   }
@@ -131,8 +91,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const startOverlay = document.getElementById('start-overlay');
         if (startOverlay) {
             startOverlay.style.display = 'none';
-            console.log("CHALLENGING");
         }
+        console.log("START GAME CHALLENGING")
         startGame(CONSTANTS.CHALLENGING_DIFFICULTY);
     });
   }
@@ -164,32 +124,36 @@ async function getTriviaQuestions(numToQuery, difficulty, numToDisplay) {
 
 }
 
-//TEST: this out some more and see if its always the same ordering
-async function fetchQuestions_new(gameType) {
+async function fetchQuestions_new() {
 
-  const easyMedQuestions = gameType === CONSTANTS.NORMAL_DIFFICULTY ? CONSTANTS.EASY_MED_QUESTIONS_N : CONSTANTS.EASY_MED_QUESTIONS_C;
-  const mediumQuestions = gameType === CONSTANTS.NORMAL_DIFFICULTY ? CONSTANTS.EASY_MED_QUESTIONS_N : CONSTANTS.EASY_MED_QUESTIONS_C;
-  const mediumHardQuestions = gameType === CONSTANTS.NORMAL_DIFFICULTY ? CONSTANTS.EASY_MED_QUESTIONS_N : CONSTANTS.EASY_MED_QUESTIONS_C;
+  const easyQuestions= await getTriviaQuestions(50, "easy", CONSTANTS.EASY_QUESTIONS_NORMAL);
+  const mediumQuestions = await getTriviaQuestions(50, "medium", CONSTANTS.MED_QUESTIONS_NORMAL + CONSTANTS.MED_QUESTIONS_CHAL);
+  const hardQuestions = await getTriviaQuestions(50, "hard", CONSTANTS.HARD_QUESTIONS_NORMAL + CONSTANTS.HARD_QUESTIONS_CHAL + CONSTANTS.INITIAL_LIVES_N);
 
-  const easyMediumQs = await getTriviaQuestions(50, "easy,medium", easyMedQuestions);
-  const mediumQs = await getTriviaQuestions(50, "medium", mediumQuestions);
-  const mediumHardQs = await getTriviaQuestions(50, "medium,hard", mediumHardQuestions);
+  const normalQuestions = [];
+  const chalQuestions = [];
 
-  const combinedQuestions = [];
-
-  // TODO: make 25 a constant which can be number of questions or something
-  for(let i = 0; i < CONSTANTS.TOTAL_QUESTIONS; i++) {
-    if(i < 5) {
-      combinedQuestions.push(easyMediumQs.pop());
-    } else if (i < 15) {
-      combinedQuestions.push(mediumQs.pop());
+  for(let i = 0; i < CONSTANTS.TOTAL_QUESTIONS + CONSTANTS.INITIAL_LIVES_N; i++) {
+    if (i < CONSTANTS.EASY_QUESTIONS_NORMAL) {
+      normalQuestions.push(easyQuestions.pop());
+    } else if (i < CONSTANTS.EASY_QUESTIONS_NORMAL + CONSTANTS.MED_QUESTIONS_NORMAL) {
+      normalQuestions.push(mediumQuestions.pop());
+    } else if (i === CONSTANTS.EASY_QUESTIONS_NORMAL + CONSTANTS.MED_QUESTIONS_NORMAL) {
+      shuffleArray(normalQuestions);
+      normalQuestions.push(hardQuestions.pop());
     } else {
-      combinedQuestions.push(mediumHardQs.pop());
+      normalQuestions.push(hardQuestions.pop());
+    }
+
+    if (i < CONSTANTS.MED_QUESTIONS_CHAL) {
+      chalQuestions.push(mediumQuestions.pop());
+    } else {
+      chalQuestions.push(hardQuestions.pop());
     }
   }
 
-  gameState.questions = combinedQuestions;
-  // combinedQuestions.forEach(e=>console.log(e.difficulty))
+  gameState.questions = normalQuestions;
+  gameState.chalQuestions = chalQuestions;
 
 }
 
@@ -246,7 +210,6 @@ function checkAnswer(questionText, category, userAnswer, correctAnswer) {
   const isCorrect = compareAnswers(userAnswer, correctAnswer);
   // showAnswerOverlay(questionText, isCorrect, correctAnswer, userAnswer);
 
-
   if (isCorrect) {
     gameState.score++;
     updateElement('score-value', gameState.score);
@@ -266,12 +229,6 @@ function compareAnswers(userAnswer, correctAnswer) {
   const lowerUserAnswer = userAnswer.toLowerCase()
   const lowerCorrectAnswer = correctAnswer.toLowerCase()
   const cleanedAnswer = lowerCorrectAnswer.replace(/^(a|the)\s+/i, '');
-
-  //Having some issues with obv correct answers being marked as wrong so leaving logs for now
-  // console.log(lowerUserAnswer === lowerCorrectAnswer);
-  // console.log(lowerUserAnswer === cleanedAnswer);
-  // console.log(isNaN(correctAnswer) && (levenshtein(lowerUserAnswer, lowerCorrectAnswer) < CONSTANTS.ANSWER_DISTANCE));
-  // console.log(isNaN(correctAnswer) && (levenshtein(lowerUserAnswer, cleanedAnswer) < CONSTANTS.ANSWER_DISTANCE));
 
   //ADD comments here!!
   if (lowerUserAnswer === lowerCorrectAnswer ||
@@ -354,14 +311,13 @@ function createOrUpdateBarChart(map) {
   }
 }
 
-//does this have to be async
 async function nextQuestion() {
   gameState.currentQuestionIndex++;
 
-  if (gameState.currentQuestionIndex === CONSTANTS.TOTAL_QUESTIONS) {
-    displayGameOver(false);
-  } else {
+  if (gameState.difficulty === CONSTANTS.NORMAL_DIFFICULTY) {
     displayQuestion(gameState.questions[gameState.currentQuestionIndex]);
+  } else {
+    displayQuestion(gameState.chalQuestions[gameState.currentQuestionIndex]);
   }
 }
 
@@ -371,19 +327,15 @@ function displayGameOver(gameWon) {
   hideElementsById(true, ['question', 'answer-container', 'answer-input', 'score', 'lives', 'mult-choice']);
 
   const gameOverMessage = document.createElement('h2');
-  gameOverMessage.textContent = gameWon ? `You win! Final Score: ${gameState.score}` :
-    `Game Over. Final Score: ${gameState.score}`;
+  gameOverMessage.textContent = gameWon ? `You win!` : `Game Over. Final Score: ${gameState.score}`;
+  container.appendChild(gameOverMessage);
 
-  //const displayValue = hide ? 'none' : '';
   const playAgainButton = document.createElement('button');
   playAgainButton.id = "playAgainButton";
   playAgainButton.textContent = 'Play Again';
-
-  //playAgainButton.onclick = startGame;
-  playAgainButton.onclick = hideElementsById(false, ['start-overlay']);
-
-  container.appendChild(gameOverMessage);
   container.appendChild(playAgainButton);
+
+  playAgainButton.onclick = () => { hideElementsById(false, ['start-overlay']) };
 }
 
 function removeGameOverElements() {
@@ -397,7 +349,7 @@ function removeGameOverElements() {
 
 function resetGameState(gameType) {
   let startingLives = gameType === CONSTANTS.NORMAL_DIFFICULTY ? CONSTANTS.INITIAL_LIVES_N : CONSTANTS.INITIAL_LIVES_C;
-  let startingMC = gameType === CONSTANTS.NORMAL_DIFFICULTY ? CONSTANTS.INITIAL_MULT_CHOICE_C : CONSTANTS.INITIAL_MULT_CHOICE_C;
+  let startingMC = gameType === CONSTANTS.NORMAL_DIFFICULTY ? CONSTANTS.INITIAL_MULT_CHOICE_N : CONSTANTS.INITIAL_MULT_CHOICE_C;
 
   if (gameState.categoryChart !== null) {
     gameState.categoryChart.destroy();
@@ -405,14 +357,15 @@ function resetGameState(gameType) {
 
   Object.assign(gameState, {
     questions: [],
+    questionsChal: [],
+    difficulty: CONSTANTS.NORMAL_DIFFICULTY,
     categories: new Map(),
     categoryChart: null,
     currentQuestionIndex: 0,
     score: 0,
     lives: startingLives,
     multChoice: startingMC,
-    //WHAT is this, seems like its not being used
-    difficultyIndex: 0
+
   });
 
   updateUIElements();
@@ -424,26 +377,27 @@ function updateUIElements() {
   updateElement('mult-choice-value', gameState.multChoice);
 }
 
-//does this have to be async?
 async function startGame(gameType) {
   resetGameState(gameType);
   removeGameOverElements();
   hideElementsById(false, ['question', 'answer-container']);
 
-  // OLD
-  // await fetchQuestions();
 
   // NEW
-  await fetchQuestions_new(gameType);
+  await fetchQuestions_new();
 
   console.log(gameState.questions);
-  if (gameState.questions.length > 0) {
+  console.log(gameState.chalQuestions);
+
+  if (gameType === CONSTANTS.CHALLENGING_DIFFICULTY) {
+    gameState.difficulty = CONSTANTS.CHALLENGING_DIFFICULTY;
+  }
+
+  if (gameState.questions.length === 0) {
+    alert('Failed to fetch questions. Please try again later.');
+  } else if (gameState.difficulty === CONSTANTS.NORMAL_DIFFICULTY) {
     displayQuestion(gameState.questions[gameState.currentQuestionIndex]);
   } else {
-    alert('Failed to fetch questions. Please try again later.');
+    displayQuestion(gameState.chalQuestions[gameState.currentQuestionIndex]);
   }
 }
-
-//This can be commented out bc we start the game when the start game shit is clicked
-//window.onload = startGame();
-fetchQuestions_new();
