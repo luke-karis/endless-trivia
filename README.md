@@ -2,7 +2,7 @@
 
 Welcome to my trivia website!
 
-Currently you can access this the website by going https://luke-karis.github.io/endless-trivia/ but I plan to buy a domain name soon.
+Currently you can access this the website by going https://luke-karis.github.io/trivia-20/ but I plan to buy a domain name soon.
 
 # Gameplay Instructions
 
